@@ -1,0 +1,76 @@
+# dsh-voice-bro
+
+Русский · [English](README.md)
+
+**Русский голосовой режим для [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness)**: OpenAI Realtime, WebRTC, push-to-talk, режим без удержания кнопки и локальная активация по слову **«БРО»**.
+
+`dsh-voice-bro` добавляет речь в Web GUI DSH, но не подменяет основного Agent. Голосовые запросы становятся обычными follow-up или steer-сообщениями; отмена и замена активной работы выполняются только по явной просьбе. Инструменты, подтверждения, история сессии и полный ответ на экране остаются в стандартном контуре DSH.
+
+> **Экспериментальный source-плагин.** DSH пока не публикует voice service и стабильный внешний API для сборки клиентских плагинов. Поэтому репозиторий устанавливает проверенные исходные пакеты в совместимый checkout DSH, а не обещает несуществующую установку одной командой npm. Базовая совместимость: DSH commit [`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`](https://github.com/deepseek-ai/deepseek-harness/commit/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e).
+
+## Возможности
+
+- Push-to-talk в каждой беседе DSH.
+- Активация по слову «БРО» после локальной калибровки голоса и микрофона.
+- OpenAI Realtime speech-to-speech через WebRTC.
+- Голосовые follow-up и корректировка активной работы; отмена с заменой доступна только после явного opt-in на Host.
+- Ожидание экранных подтверждений без ложного сообщения о завершении.
+- Микрофон не подключается как WebRTC sender: после триггера PCM передаётся через упорядоченный Realtime data channel.
+- Отображение стоимости по полным provider-reported token usage.
+- Короткий голосовой итог; подробный ответ остаётся на экране.
+
+## Требования
+
+- Node.js `^22.19.0` или `>=24` и pnpm через Corepack.
+- Совместимый исходный checkout [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
+- `OPENAI_API_KEY` с доступом к `gpt-realtime-2.1` и `gpt-4o-mini-transcribe`.
+- Браузер с WebRTC, `AudioContext`, `AudioWorklet` и доступом к микрофону.
+- `localhost` или HTTPS.
+
+OpenAI Realtime и транскрибация платные. Перед включением режима проверьте актуальные [тарифы OpenAI API](https://openai.com/api/pricing/).
+
+## Установка
+
+Используйте чистый checkout DSH. Скрипт не перезаписывает уже существующие voice-каталоги без явно переданного `--force`.
+
+```bash
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+git clone https://github.com/MaxMarsh301/dsh-voice-bro.git
+
+node dsh-voice-bro/scripts/install-into-dsh.mjs ./deepseek-harness
+cd deepseek-harness
+corepack enable
+pnpm install
+pnpm run build
+```
+
+Ключ задаётся только в окружении:
+
+```bash
+export OPENAI_API_KEY='your-key-here'
+pnpm dsh web
+```
+
+Откройте Web GUI DSH, разрешите микрофон и нажмите кнопку голосового режима в беседе. Для режима без удержания кнопки интерфейс сначала предложит записать локальные образцы слова «БРО».
+
+## Приватность
+
+- Сырой PCM калибровки хранится только в ограниченной памяти и обнуляется после вычисления шаблона.
+- Производные шаблоны остаются в локальном хранилище браузера.
+- Звук до срабатывания триггера не отправляется в OpenAI.
+- `OPENAI_API_KEY` и provider call ID остаются на Host.
+- После триггера OpenAI получает речь пользователя и контекст голосовой оболочки, необходимый для обработки и озвучивания ответа.
+
+Подробные контракты находятся в README отдельных пакетов.
+
+## Проверка репозитория
+
+```bash
+npm run check
+```
+
+Сборка и поведенческие тесты запускаются после установки исходников в совместимый монорепозиторий DSH: там находятся Typert generator, клиентский bundler и реальная Web-композиция.
+
+## Лицензия
+
+MIT. Вынесенный код DSH сохраняет исходное уведомление об авторских правах DeepSeek. См. [`LICENSE`](LICENSE).

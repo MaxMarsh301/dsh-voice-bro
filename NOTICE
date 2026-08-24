@@ -1,0 +1,8 @@
+dsh-voice-bro contains source extracted from the DeepSeek Harness project:
+https://github.com/deepseek-ai/deepseek-harness
+
+Compatibility and extraction baseline:
+b150a551b8d465e31e418e1b2eaf5e79bbb7d28e
+
+DeepSeek Harness and the extracted source are provided under the MIT License.
+The repository preserves the upstream copyright notice in LICENSE.

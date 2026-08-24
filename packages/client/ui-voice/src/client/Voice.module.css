@@ -1,0 +1,159 @@
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ptt,
+.handsFree,
+.calibrate,
+.cancel {
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.ptt {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 14px;
+  touch-action: none;
+  user-select: none;
+}
+
+.ptt:hover,
+.handsFree:hover,
+.calibrate:hover,
+.cancel:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.ptt[data-active],
+.handsFree[data-active],
+.calibrate[data-active] {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
+}
+
+.ptt:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.micMark {
+  position: relative;
+  display: block;
+  width: 8px;
+  height: 13px;
+  border: 1.5px solid currentcolor;
+  border-radius: 5px;
+}
+
+.micMark::after {
+  position: absolute;
+  bottom: -5px;
+  left: -4px;
+  width: 14px;
+  height: 7px;
+  border-bottom: 1.5px solid currentcolor;
+  border-left: 1.5px solid currentcolor;
+  border-right: 1.5px solid currentcolor;
+  border-radius: 0 0 8px 8px;
+  content: '';
+}
+
+.handsFree {
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.status {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  width: calc(
+    100% -
+    var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset)
+  );
+  max-width: calc(var(--dsh-composer-card-max-width) - 4 * var(--dsh-composer-dock-inset));
+  height: 36px;
+  margin: 0 auto;
+  padding: 4px 12px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-specific-tip);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.stateDot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-tertiary);
+}
+
+.stateDot[data-phase='interrupting'],
+.stateDot[data-phase='listening'],
+.stateDot[data-phase='speaking'] {
+  background: var(--dsw-alias-label-primary);
+}
+
+.statusText {
+  flex: 0 0 auto;
+}
+
+.transcript {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cost {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calibrationProgress {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.calibrate,
+.cancel {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.calibrate:disabled {
+  cursor: default;
+  opacity: 0.4;
+}

@@ -1,0 +1,32 @@
+{
+  "name": "dsh-voice-bro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Russian voice mode plugin for DeepSeek Harness with OpenAI Realtime, WebRTC, push-to-talk, and the local wake word БРО",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaxMarsh301/dsh-voice-bro.git"
+  },
+  "homepage": "https://github.com/MaxMarsh301/dsh-voice-bro#readme",
+  "bugs": "https://github.com/MaxMarsh301/dsh-voice-bro/issues",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "voice-assistant",
+    "voice-mode",
+    "openai-realtime",
+    "webrtc",
+    "wake-word",
+    "push-to-talk",
+    "speech-to-speech",
+    "russian"
+  ],
+  "scripts": {
+    "check": "node scripts/verify-repository.mjs"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  }
+}

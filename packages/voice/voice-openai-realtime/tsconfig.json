@@ -1,0 +1,14 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../core/agent" },
+    { "path": "../../credentials/credentials" },
+    { "path": "../../llm/llm" },
+    { "path": "../voice" },
+    { "path": "../../runtime-diagnostics/invariants" }
+  ]
+}
