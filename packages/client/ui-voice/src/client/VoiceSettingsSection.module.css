@@ -1,0 +1,108 @@
+.section {
+  display: flex;
+  max-width: 720px;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.intro,
+.cardDescription,
+.privacy,
+.message,
+.progress {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.cardCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.calibration {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.action {
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.action:hover:not(:disabled),
+.action[data-active] {
+  border-color: var(--dsw-alias-label-dimmed);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.action:disabled {
+  cursor: default;
+  opacity: .45;
+}
+
+.toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--dsw-alias-label-primary);
+}
+
+.privacy {
+  max-width: 620px;
+}
+
+@media (max-width: 720px) {
+  .card,
+  .calibration {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

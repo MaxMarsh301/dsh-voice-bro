@@ -6,8 +6,11 @@
     { "path": "../../../vendor/cordis" },
     { "path": "../../../vendor/schemastery" },
     { "path": "../../core/agent" },
+    { "path": "../../core/session" },
     { "path": "../../credentials/credentials" },
     { "path": "../../llm/llm" },
+    { "path": "../../session-query/session-query" },
+    { "path": "../../typert/protocol" },
     { "path": "../voice" },
     { "path": "../../runtime-diagnostics/invariants" }
   ]

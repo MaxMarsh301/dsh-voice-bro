@@ -27,14 +27,54 @@ describe('voice data-channel events', () => {
     expect(parseVoiceEvent({
       type: 'response.done',
       response: { id: 'speech-2', status: 'incomplete', status_details: { reason: 'content_filter' } },
-    })).toEqual({ kind: 'response-error', code: 'provider-response', responseId: 'speech-2' })
+    })).toEqual({ kind: 'response-error', code: 'provider-response', detail: 'content_filter', responseId: 'speech-2' })
   })
 
-  it('accepts only string transcript fields', () => {
-    expect(parseVoiceEvent('{"type":"response.audio_transcript.delta","delta":"safe"}'))
-      .toEqual({ kind: 'transcript-delta', text: 'safe' })
-    expect(parseVoiceEvent({ type: 'response.audio_transcript.delta', delta: { html: '<b>x</b>' } }))
+  it('normalizes allowlisted model actions and bounds the planned thread request', () => {
+    expect(parseVoiceEvent({
+      type: 'response.function_call_arguments.done', call_id: 'call-1', name: 'thread_turn',
+      arguments: JSON.stringify({ prompt: '  Проверить архитектуру  ' }),
+    })).toEqual({
+      kind: 'activity-step', callId: 'call-1', tool: 'thread_turn', plannedText: 'Проверить архитектуру',
+    })
+    expect(parseVoiceEvent({
+      type: 'response.output_item.done', item: {
+        type: 'function_call', call_id: 'call-2', name: 'wait_for_thread', arguments: '{}',
+      },
+    })).toEqual({ kind: 'activity-step', callId: 'call-2', tool: 'wait_for_thread' })
+    const bounded = parseVoiceEvent({
+      type: 'response.function_call_arguments.done', call_id: 'call-3', name: 'thread_turn',
+      arguments: JSON.stringify({ prompt: 'x'.repeat(2_100) }),
+    })
+    expect(bounded).toMatchObject({ kind: 'activity-step', plannedText: 'x'.repeat(2_000) })
+  })
+
+  it('labels known actions without reflecting malformed or unknown arguments', () => {
+    expect(parseVoiceEvent({
+      type: 'response.function_call_arguments.done', call_id: 'call-1', name: 'thread_turn', arguments: '{',
+    })).toEqual({ kind: 'activity-step', callId: 'call-1', tool: 'thread_turn' })
+    expect(parseVoiceEvent({
+      type: 'response.function_call_arguments.done', call_id: 'call-2', name: 'shell', arguments: '{}',
+    })).toEqual({ kind: 'ignored' })
+    expect(parseVoiceEvent({
+      type: 'response.function_call_arguments.done', call_id: '', name: 'read_thread', arguments: '{}',
+    })).toEqual({ kind: 'ignored' })
+  })
+
+  it('accepts only owned string transcript fields', () => {
+    expect(parseVoiceEvent('{"type":"response.audio_transcript.delta","response_id":"speech-1","delta":"safe"}'))
+      .toEqual({ kind: 'transcript-delta', responseId: 'speech-1', text: 'safe' })
+    expect(parseVoiceEvent({ type: 'response.audio_transcript.delta', response_id: 'speech-1', delta: { html: '<b>x</b>' } }))
       .toEqual({ kind: 'ignored' })
+    expect(parseVoiceEvent({ type: 'response.audio_transcript.delta', delta: 'unowned' }))
+      .toEqual({ kind: 'ignored' })
+  })
+
+  it('parses the response id and metadata that establish ownership', () => {
+    expect(parseVoiceEvent({
+      type: 'response.created', response: { id: 'speech-1', metadata: { dsh_response_epoch: 'epoch-1' } },
+    })).toEqual({ kind: 'response-started', responseId: 'speech-1', epoch: 'epoch-1' })
+    expect(parseVoiceEvent({ type: 'response.created', response: { id: 'speech-1' } })).toEqual({ kind: 'ignored' })
   })
 
   it('attaches exact Realtime usage without breaking lifecycle parsing when usage is malformed', () => {
@@ -62,13 +102,17 @@ describe('voice data-channel events', () => {
     })).toEqual({ kind: 'response-generation-final', responseId: 'speech-usage' })
   })
 
-  it('parses token-form transcription usage separately and ignores duration usage', () => {
+  it('parses committed item ownership and token-form transcription usage', () => {
+    expect(parseVoiceEvent({ type: 'input_audio_buffer.committed', item_id: 'item-1' }))
+      .toEqual({ kind: 'input-committed', itemId: 'item-1' })
+    expect(parseVoiceEvent({ type: 'input_audio_buffer.committed' })).toEqual({ kind: 'ignored' })
     expect(parseVoiceEvent({
       type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'item-1',
       event_id: 'transcription-1',
       usage: { type: 'tokens', total_tokens: 12, input_tokens: 9, output_tokens: 3 },
     })).toEqual({
-      kind: 'transcription-usage', eventId: 'transcription-1', usage: { inputTokens: 9, outputTokens: 3 },
+      kind: 'transcription-usage', itemId: 'item-1', eventId: 'transcription-1', usage: { inputTokens: 9, outputTokens: 3 },
     })
     expect(parseVoiceEvent({
       type: 'conversation.item.input_audio_transcription.completed',
@@ -81,5 +125,7 @@ describe('voice data-channel events', () => {
     expect(parseVoiceEvent('{')).toEqual({ kind: 'ignored' })
     expect(parseVoiceEvent({ type: 'error', error: { message: '<secret provider detail>' } }))
       .toEqual({ kind: 'response-error', code: 'provider-response' })
+    expect(parseVoiceEvent({ type: 'error', error: { code: 'audio_buffer_too_small', message: '<secret provider detail>' } }))
+      .toEqual({ kind: 'response-error', code: 'provider-response', detail: 'audio_buffer_too_small' })
   })
 })

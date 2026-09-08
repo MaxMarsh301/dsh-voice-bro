@@ -21,15 +21,26 @@
     "@deepseek-ai/dsh-credentials": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^",
+    "@deepseek-ai/dsh-session-query": "workspace:^",
+    "@deepseek-ai/dsh-typert-protocol": "workspace:^",
     "@deepseek-ai/dsh-voice": "workspace:^"
   },
-  "dependencies": { "@deepseek-ai/schemastery": "workspace:^", "ws": "^8.18.3" },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:^",
+    "https-proxy-agent": "^7.0.6",
+    "undici": "^7.28.0",
+    "ws": "^8.18.3"
+  },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-credentials": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^",
+    "@deepseek-ai/dsh-session-query": "workspace:^",
+    "@deepseek-ai/dsh-typert-protocol": "workspace:^",
     "@deepseek-ai/dsh-voice": "workspace:^",
     "@types/ws": "^8.18.1"
   }

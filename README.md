@@ -10,7 +10,8 @@
 
 ## Features
 
-- **Push-to-talk** control embedded in each DSH conversation.
+- **Global voice controls** opened from the sidebar: push-to-talk and **БРО** live in one shared voice panel, not in the chat text-input card.
+- **One persistent call across threads**, with voice-driven thread creation, navigation, and background completion announcements.
 - **Hands-free mode** activated by the literal Russian wake word **БРО**.
 - **Local wake-word matching** after speaker and microphone calibration.
 - **OpenAI Realtime speech-to-speech** over WebRTC.
@@ -39,7 +40,7 @@ The installer also adds the required packages to the official DSH Web compositio
 - Node.js `^22.19.0` or `>=24`.
 - pnpm through Corepack.
 - A compatible [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) source checkout.
-- `OPENAI_API_KEY` with access to `gpt-realtime-2.1` and `gpt-4o-mini-transcribe`.
+- `OPENAI_API_KEY` with access to `gpt-realtime-2.1-mini` and `gpt-4o-mini-transcribe`.
 - A browser with WebRTC, `AudioContext`, `AudioWorklet`, and microphone permission.
 - `localhost` or HTTPS, because browsers restrict microphone capture in insecure contexts.
 
@@ -52,6 +53,7 @@ Start with a clean DSH checkout. The installer refuses to overwrite existing voi
 ```bash
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 git clone https://github.com/MaxMarsh301/dsh-voice-bro.git
+git -C deepseek-harness checkout b150a551b8d465e31e418e1b2eaf5e79bbb7d28e
 
 node dsh-voice-bro/scripts/install-into-dsh.mjs ./deepseek-harness
 cd deepseek-harness
@@ -67,19 +69,13 @@ export OPENAI_API_KEY='your-key-here'
 pnpm dsh web
 ```
 
-Open the DSH Web URL, allow microphone access, and use the microphone control in a conversation. Hands-free mode asks for local «БРО» calibration before it can trigger.
+Open the DSH Web URL and expand the global voice controls from the sidebar. Use push-to-talk or enable **БРО** in that panel; the chat text-input card contains no voice buttons. Allow microphone access when starting capture. Configure local «БРО» calibration in Voice Settings before hands-free activation.
 
 ## Updating
 
-The installer is source-oriented and intentionally fails when an insertion point has changed. For a newer DSH revision:
+The installer supports the exact compatibility baseline above and fails when an insertion point has changed. Install each plugin update into a fresh checkout of that baseline, then run the DSH build and GUI test suites before switching your deployment. Preserve your runtime settings and data separately from the source checkout.
 
-1. Update both repositories.
-2. Review DSH changes since the compatibility baseline.
-3. Apply the installer to a clean branch.
-4. Run the DSH build and GUI test suites.
-5. Verify microphone gating, interruption, playback drain, and cleanup in the actual Web GUI.
-
-Do not use `--force` over unreviewed local changes.
+`--force` is not an in-place upgrade or rollback mechanism and does not bypass the baseline check. Supporting another DSH revision requires reviewing and testing its integration points before changing the baseline.
 
 ## Privacy and security
 
@@ -102,7 +98,11 @@ Repository-level checks validate package identity, expected search terms, source
 
 ```bash
 npm run check
+DSH_SOURCE_CHECKOUT=/absolute/path/to/deepseek-harness \
+  DSH_INSTALLER_TEST_ROOT=/absolute/path/to/scratch npm run check:installer
 ```
+
+The installer test uses the pinned commit and its parent from the local DSH Git object database, writes disposable fixtures only under the supplied scratch directory, and retains them for inspection. CI runs both repository and installer checks.
 
 Behavioral tests and builds run after installing the source into the compatible DSH monorepo, where the necessary TypeScript project graph, Typert generator, client plugin bundler, and real Web composition live.
 

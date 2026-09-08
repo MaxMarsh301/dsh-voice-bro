@@ -17,3 +17,13 @@ jobs:
         with:
           node-version: 22
       - run: npm run check
+      - uses: actions/checkout@v4
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: b150a551b8d465e31e418e1b2eaf5e79bbb7d28e
+          path: .test-dsh-source
+          fetch-depth: 2
+      - run: npm run check:installer
+        env:
+          DSH_SOURCE_CHECKOUT: ${{ github.workspace }}/.test-dsh-source
+          DSH_INSTALLER_TEST_ROOT: ${{ runner.temp }}

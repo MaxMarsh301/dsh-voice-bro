@@ -1,6 +1,6 @@
 # @deepseek-ai/dsh-client-wake-word-local
 
-English
+English | [中文](README.zh.md)
 
 Browser-only Cordis service for detecting the literal Russian wake word **БРО** from speaker-calibrated templates. It is not a universal or pretrained speech model: each browser profile needs several isolated samples from its user before detection becomes ready.
 

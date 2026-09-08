@@ -36,7 +36,11 @@ export function wakeWordFrom(service: WakeWordServiceContract): WakeWordPort {
   }
 }
 
-/** @returns the UI readiness represented by a provider state. */
+/**
+ * Project provider state into the UI readiness vocabulary.
+ * @param state - Current local wake provider state.
+ * @returns UI readiness represented by the provider state.
+ */
 export function wakeReadiness(state: WakeWordState): WakeReadiness {
   return state.ready && state.workerReady ? 'ready' : 'calibration-required'
 }

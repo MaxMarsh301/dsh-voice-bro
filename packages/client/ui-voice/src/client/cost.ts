@@ -31,11 +31,12 @@ export interface VoiceCostSnapshot {
   sessionReported: boolean
 }
 
-const NANO_USD_PER_REALTIME_TEXT_INPUT_TOKEN = 4_000
-const NANO_USD_PER_REALTIME_CACHED_INPUT_TOKEN = 400
-const NANO_USD_PER_REALTIME_TEXT_OUTPUT_TOKEN = 24_000
-const NANO_USD_PER_REALTIME_AUDIO_INPUT_TOKEN = 32_000
-const NANO_USD_PER_REALTIME_AUDIO_OUTPUT_TOKEN = 64_000
+const NANO_USD_PER_REALTIME_TEXT_INPUT_TOKEN = 600
+const NANO_USD_PER_REALTIME_CACHED_TEXT_INPUT_TOKEN = 60
+const NANO_USD_PER_REALTIME_TEXT_OUTPUT_TOKEN = 2_400
+const NANO_USD_PER_REALTIME_AUDIO_INPUT_TOKEN = 10_000
+const NANO_USD_PER_REALTIME_CACHED_AUDIO_INPUT_TOKEN = 300
+const NANO_USD_PER_REALTIME_AUDIO_OUTPUT_TOKEN = 20_000
 const NANO_USD_PER_TRANSCRIPTION_INPUT_TOKEN = 1_250
 const NANO_USD_PER_TRANSCRIPTION_OUTPUT_TOKEN = 5_000
 const MAX_NANO_USD_PER_TOKEN = NANO_USD_PER_REALTIME_AUDIO_OUTPUT_TOKEN
@@ -67,7 +68,46 @@ function sumCost(left: VoiceCostBreakdown, right: VoiceCostBreakdown): VoiceCost
     transcriptionNanoUsd: left.transcriptionNanoUsd + right.transcriptionNanoUsd,
     totalNanoUsd: left.totalNanoUsd + right.totalNanoUsd,
   }
-  return Object.values(sum).every(Number.isSafeInteger) ? sum : undefined
+  return Object.values(sum).every(value => Number.isSafeInteger(value) && value >= 0) ? sum : undefined
+}
+
+function breakdownIssue(name: string, cost: VoiceCostBreakdown): string | undefined {
+  const values = Object.values(cost)
+  if (!values.every(value => Number.isSafeInteger(value) && value >= 0)) return `${name} contains an invalid nano-USD value`
+  const categories = cost.audioNanoUsd + cost.textNanoUsd + cost.cachedInputNanoUsd + cost.transcriptionNanoUsd
+  if (!Number.isSafeInteger(categories) || categories !== cost.totalNanoUsd) return `${name} total does not match its categories`
+  return undefined
+}
+
+/**
+ * Validate the cost relation consumed by the voice plaque.
+ * @param snapshot - controller-published request and call totals.
+ * @returns a stable diagnostic without provider content, or undefined when display is safe.
+ */
+export function voiceCostSnapshotIssue(snapshot: VoiceCostSnapshot): string | undefined {
+  const requestIssue = breakdownIssue('current request', snapshot.currentRequest)
+  if (requestIssue !== undefined) return requestIssue
+  const sessionIssue = breakdownIssue('session', snapshot.sessionTotal)
+  if (sessionIssue !== undefined) return sessionIssue
+  if (snapshot.currentRequestReported && !snapshot.sessionReported) {
+    return 'reported current request has no reported session total'
+  }
+  if (!snapshot.currentRequestReported && snapshot.currentRequest.totalNanoUsd !== 0) {
+    return 'unreported current request has a non-zero total'
+  }
+  if (!snapshot.sessionReported && snapshot.sessionTotal.totalNanoUsd !== 0) {
+    return 'unreported session has a non-zero total'
+  }
+  const request = snapshot.currentRequest
+  const session = snapshot.sessionTotal
+  if (
+    request.audioNanoUsd > session.audioNanoUsd
+    || request.textNanoUsd > session.textNanoUsd
+    || request.cachedInputNanoUsd > session.cachedInputNanoUsd
+    || request.transcriptionNanoUsd > session.transcriptionNanoUsd
+    || request.totalNanoUsd > session.totalNanoUsd
+  ) return 'current request exceeds the accumulated session total'
+  return undefined
 }
 
 /**
@@ -133,7 +173,7 @@ export function parseTranscriptionTokenUsage(value: unknown): TranscriptionToken
 }
 
 /**
- * Price one Realtime response using gpt-realtime-2.1 modality rates.
+ * Price one Realtime response using gpt-realtime-2.1-mini modality rates.
  * @param usage - normalized complete provider usage.
  * @returns exact integer nano-USD category totals.
  */
@@ -144,8 +184,8 @@ export function calculateRealtimeCost(usage: RealtimeTokenUsage): VoiceCostBreak
     + usage.outputTextTokens * NANO_USD_PER_REALTIME_TEXT_OUTPUT_TOKEN
   const audioNanoUsd = uncachedAudioInput * NANO_USD_PER_REALTIME_AUDIO_INPUT_TOKEN
     + usage.outputAudioTokens * NANO_USD_PER_REALTIME_AUDIO_OUTPUT_TOKEN
-  const cachedInputNanoUsd = (usage.cachedTextTokens + usage.cachedAudioTokens)
-    * NANO_USD_PER_REALTIME_CACHED_INPUT_TOKEN
+  const cachedInputNanoUsd = usage.cachedTextTokens * NANO_USD_PER_REALTIME_CACHED_TEXT_INPUT_TOKEN
+    + usage.cachedAudioTokens * NANO_USD_PER_REALTIME_CACHED_AUDIO_INPUT_TOKEN
   return {
     audioNanoUsd,
     textNanoUsd,
@@ -179,6 +219,10 @@ export class VoiceCostAccumulator {
   private readonly responseIds = new Set<string>()
   private readonly transcriptionEventIds = new Set<string>()
 
+  constructor(private readonly reportError: (message: string) => void = (message) => {
+    console.error(`[ui-voice] cost accounting failed: ${message}`)
+  }) {}
+
   /** Reset request-local totals while preserving the controller-lifetime session total. */
   beginRequest(): void {
     this.currentRequest = EMPTY_COST
@@ -189,11 +233,12 @@ export class VoiceCostAccumulator {
    * Add one Realtime report unless its response id was already seen.
    * @param usage - normalized response usage.
    * @param responseId - provider response id when present.
+   * @param includeCurrentRequest - whether this report belongs to the active phrase.
    * @returns whether the report was accumulated.
    */
-  addRealtime(usage: RealtimeTokenUsage, responseId?: string): boolean {
+  addRealtime(usage: RealtimeTokenUsage, responseId?: string, includeCurrentRequest = true): boolean {
     if (responseId !== undefined && this.responseIds.has(responseId)) return false
-    if (!this.add(calculateRealtimeCost(usage))) return false
+    if (!this.add(calculateRealtimeCost(usage), includeCurrentRequest)) return false
     if (responseId !== undefined) this.responseIds.add(responseId)
     return true
   }
@@ -202,16 +247,20 @@ export class VoiceCostAccumulator {
    * Add one transcription report unless its event id was already seen.
    * @param usage - normalized transcription usage.
    * @param eventId - provider event id when present.
+   * @param includeCurrentRequest - whether this report belongs to the latest committed phrase.
    * @returns whether the report was accumulated.
    */
-  addTranscription(usage: TranscriptionTokenUsage, eventId?: string): boolean {
+  addTranscription(usage: TranscriptionTokenUsage, eventId?: string, includeCurrentRequest = true): boolean {
     if (eventId !== undefined && this.transcriptionEventIds.has(eventId)) return false
-    if (!this.add(calculateTranscriptionCost(usage))) return false
+    if (!this.add(calculateTranscriptionCost(usage), includeCurrentRequest)) return false
     if (eventId !== undefined) this.transcriptionEventIds.add(eventId)
     return true
   }
 
-  /** Create a detached cost view. @returns an immutable copy of the current request and session totals. */
+  /**
+   * Create a detached cost view.
+   * @returns Immutable copy of the current request and session totals.
+   */
   snapshot(): VoiceCostSnapshot {
     return {
       currentRequest: { ...this.currentRequest },
@@ -221,13 +270,21 @@ export class VoiceCostAccumulator {
     }
   }
 
-  private add(cost: VoiceCostBreakdown): boolean {
-    const currentRequest = sumCost(this.currentRequest, cost)
+  private add(cost: VoiceCostBreakdown, includeCurrentRequest = true): boolean {
+    const costIssue = breakdownIssue('provider increment', cost)
+    if (costIssue !== undefined) {
+      this.reportError(costIssue)
+      return false
+    }
+    const currentRequest = includeCurrentRequest ? sumCost(this.currentRequest, cost) : this.currentRequest
     const sessionTotal = sumCost(this.sessionTotal, cost)
-    if (currentRequest === undefined || sessionTotal === undefined) return false
+    if (currentRequest === undefined || sessionTotal === undefined) {
+      this.reportError('cumulative nano-USD total exceeded the safe integer range')
+      return false
+    }
     this.currentRequest = currentRequest
     this.sessionTotal = sessionTotal
-    this.currentRequestReported = true
+    if (includeCurrentRequest) this.currentRequestReported = true
     this.sessionReported = true
     return true
   }

@@ -30,6 +30,12 @@
       "path": "../ui-conversation"
     },
     {
+      "path": "../ui-settings"
+    },
+    {
+      "path": "../ui-sidebar"
+    },
+    {
       "path": "../wake-word-local"
     },
     {

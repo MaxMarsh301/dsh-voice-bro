@@ -5,6 +5,7 @@ import { constants } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { externalIntegrationPatches } from './installer-patches.mjs'
 
 const COMPATIBLE_DSH_COMMIT = 'b150a551b8d465e31e418e1b2eaf5e79bbb7d28e'
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -29,13 +30,16 @@ async function read(path) {
   return readFile(join(targetRoot, path), 'utf8')
 }
 
+// Stage every edit before copying or changing any target file. This is preflight,
+// not filesystem rollback: an I/O failure during publication still needs a fresh checkout.
+const staged = new Map()
 async function replaceOnce(path, before, after) {
-  const absolute = join(targetRoot, path)
-  const source = await readFile(absolute, 'utf8')
+  const source = staged.get(path) ?? await read(path)
+  if (source.includes(after)) throw new Error(`${path}: integration already installed; use a fresh checkout`)
   const first = source.indexOf(before)
   if (first < 0) throw new Error(`${path}: compatible insertion point not found`)
   if (source.indexOf(before, first + before.length) >= 0) throw new Error(`${path}: insertion point is ambiguous`)
-  await writeFile(absolute, source.replace(before, after))
+  staged.set(path, source.replace(before, after))
 }
 
 function git(...args) {
@@ -64,10 +68,10 @@ for (const [, target] of packages) {
     throw new Error(`${target} already exists; remove it or pass --force after reviewing local changes`)
   }
 }
-for (const [source, target] of packages) {
-  await cp(join(repositoryRoot, source), join(targetRoot, target), { recursive: true, force })
+for (const [source] of packages) {
+  await access(join(repositoryRoot, source, 'package.json'), constants.R_OK)
 }
-await cp(join(repositoryRoot, 'packages/voice/README.md'), join(targetRoot, 'packages/voice/README.md'), { force })
+await access(join(repositoryRoot, 'packages/voice/README.md'), constants.R_OK)
 
 await replaceOnce(
   'tsconfig.base.json',
@@ -137,13 +141,27 @@ await replaceOnce(
 await replaceOnce(
   'packages/bundle/web-app/cordis.patch.yml',
   '    # Browser Session export: `/export` command plus the shared download dialog.\n',
-  "    # Optional Host broker for wake-gated OpenAI Realtime calls.\n    - id: voice-openai-realtime\n      name: '@deepseek-ai/dsh-voice-openai-realtime'\n      config:\n        model: gpt-realtime-2.1\n        transcriptionModel: gpt-4o-mini-transcribe\n        voice: cedar\n        maxSessionSeconds: 3300\n        maxResponseOutputTokens: 768\n\n    # Browser Session export: `/export` command plus the shared download dialog.\n",
+  "    # Optional Host broker for wake-gated OpenAI Realtime calls.\n    - id: voice-openai-realtime\n      name: '@deepseek-ai/dsh-voice-openai-realtime'\n      config:\n        model: gpt-realtime-2.1-mini\n        transcriptionModel: gpt-4o-mini-transcribe\n        voice: cedar\n        maxSessionSeconds: 3300\n        maxResponseOutputTokens: 768\n\n    # Browser Session export: `/export` command plus the shared download dialog.\n",
 )
 await replaceOnce(
   'packages/bundle/web-app/cordis.patch.yml',
   "    - id: ui-brand-official\n      name: '@deepseek-ai/dsh-client-ui-brand-official'\n",
-  "    # Speaker-calibrated browser matcher for the literal keyword БРО.\n    - id: wake-word-local\n      name: '@deepseek-ai/dsh-client-wake-word-local'\n\n    # Session push-to-talk and hands-free voice controls.\n    - id: ui-voice\n      name: '@deepseek-ai/dsh-client-ui-voice'\n\n    - id: ui-brand-official\n      name: '@deepseek-ai/dsh-client-ui-brand-official'\n",
+  "    # Speaker-calibrated browser matcher for the literal keyword БРО.\n    - id: wake-word-local\n      name: '@deepseek-ai/dsh-client-wake-word-local'\n\n    # Page-global push-to-talk and hands-free voice controls.\n    - id: ui-voice\n      name: '@deepseek-ai/dsh-client-ui-voice'\n\n    - id: ui-brand-official\n      name: '@deepseek-ai/dsh-client-ui-brand-official'\n",
 )
+
+for (const { path, before, after } of externalIntegrationPatches) {
+  await replaceOnce(path, before, after)
+}
+
+// No target writes occur above this line. --force permits reviewed local files,
+// not a different baseline or a second application of these source patches.
+for (const [source, target] of packages) {
+  await cp(join(repositoryRoot, source), join(targetRoot, target), { recursive: true, force })
+}
+await cp(join(repositoryRoot, 'packages/voice/README.md'), join(targetRoot, 'packages/voice/README.md'), { force })
+for (const [path, contents] of staged) {
+  await writeFile(join(targetRoot, path), contents)
+}
 
 console.log(`Installed dsh-voice-bro source into ${targetRoot}`)
 console.log('Next: pnpm install && pnpm run build')

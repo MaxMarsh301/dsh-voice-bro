@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   VoiceCostAccumulator, calculateRealtimeCost, calculateTranscriptionCost,
-  parseRealtimeTokenUsage, parseTranscriptionTokenUsage,
+  parseRealtimeTokenUsage, parseTranscriptionTokenUsage, voiceCostSnapshotIssue,
 } from '../src/client/cost.ts'
 
 const realtimeReport = {
@@ -63,11 +63,11 @@ describe('voice cost accounting', () => {
 
   it('subtracts cached tokens by modality and charges cached input once', () => {
     expect(calculateRealtimeCost(realtimeUsage)).toEqual({
-      audioNanoUsd: 3_840_000,
-      textNanoUsd: 1_040_000,
-      cachedInputNanoUsd: 12_000,
+      audioNanoUsd: 1_200_000,
+      textNanoUsd: 120_000,
+      cachedInputNanoUsd: 4_200,
       transcriptionNanoUsd: 0,
-      totalNanoUsd: 4_892_000,
+      totalNanoUsd: 1_324_200,
     })
     expect(calculateTranscriptionCost(transcriptionUsage)).toEqual({
       audioNanoUsd: 0,
@@ -78,8 +78,19 @@ describe('voice cost accounting', () => {
     })
   })
 
+  it('uses distinct cached text and audio rates', () => {
+    expect(calculateRealtimeCost({
+      inputTextTokens: 1, inputAudioTokens: 0, cachedTextTokens: 1, cachedAudioTokens: 0,
+      outputTextTokens: 0, outputAudioTokens: 0,
+    }).cachedInputNanoUsd).toBe(60)
+    expect(calculateRealtimeCost({
+      inputTextTokens: 0, inputAudioTokens: 1, cachedTextTokens: 0, cachedAudioTokens: 1,
+      outputTextTokens: 0, outputAudioTokens: 0,
+    }).cachedInputNanoUsd).toBe(300)
+  })
+
   it('rejects malicious reports and cumulative totals that cannot remain exact', () => {
-    const maxSafeTokens = Math.floor(Number.MAX_SAFE_INTEGER / 64_000)
+    const maxSafeTokens = Math.floor(Number.MAX_SAFE_INTEGER / 20_000)
     const oversized = {
       total_tokens: maxSafeTokens + 1,
       input_tokens: 0,
@@ -114,8 +125,8 @@ describe('voice cost accounting', () => {
     expect(costs.addTranscription(transcriptionUsage, 'event-1')).toBe(true)
     expect(costs.addTranscription(transcriptionUsage, 'event-1')).toBe(false)
     expect(costs.snapshot()).toMatchObject({
-      currentRequest: { totalNanoUsd: 5_092_000 },
-      sessionTotal: { totalNanoUsd: 5_092_000 },
+      currentRequest: { totalNanoUsd: 1_524_200 },
+      sessionTotal: { totalNanoUsd: 1_524_200 },
       currentRequestReported: true,
       sessionReported: true,
     })
@@ -123,12 +134,57 @@ describe('voice cost accounting', () => {
     costs.beginRequest()
     expect(costs.snapshot()).toMatchObject({
       currentRequest: { totalNanoUsd: 0 },
-      sessionTotal: { totalNanoUsd: 5_092_000 },
+      sessionTotal: { totalNanoUsd: 1_524_200 },
       currentRequestReported: false,
       sessionReported: true,
     })
+    expect(costs.addRealtime(realtimeUsage, 'retired-response', false)).toBe(true)
+    expect(costs.snapshot()).toMatchObject({
+      currentRequest: { totalNanoUsd: 0 },
+      sessionTotal: { totalNanoUsd: 2_848_400 },
+      currentRequestReported: false,
+    })
+    expect(costs.addTranscription(transcriptionUsage, 'retired-transcription', false)).toBe(true)
+    expect(costs.snapshot()).toMatchObject({
+      currentRequest: { totalNanoUsd: 0 },
+      sessionTotal: { totalNanoUsd: 3_048_400 },
+    })
     expect(costs.addRealtime(realtimeUsage)).toBe(true)
-    expect(costs.addRealtime(realtimeUsage)).toBe(true)
-    expect(costs.snapshot().sessionTotal.totalNanoUsd).toBe(14_876_000)
+    expect(costs.snapshot().sessionTotal.totalNanoUsd).toBe(4_372_600)
+  })
+
+  it('validates every relation consumed by the voice plaque', () => {
+    const costs = new VoiceCostAccumulator()
+    costs.addRealtime(realtimeUsage)
+    const valid = costs.snapshot()
+    expect(voiceCostSnapshotIssue(valid)).toBeUndefined()
+    expect(voiceCostSnapshotIssue({
+      ...valid,
+      currentRequest: { ...valid.currentRequest, totalNanoUsd: valid.currentRequest.totalNanoUsd + 1 },
+    })).toBe('current request total does not match its categories')
+    expect(voiceCostSnapshotIssue({ ...valid, sessionReported: false })).toBe('reported current request has no reported session total')
+    expect(voiceCostSnapshotIssue({
+      ...valid,
+      currentRequest: { ...valid.currentRequest, audioNanoUsd: valid.sessionTotal.audioNanoUsd + 1, totalNanoUsd: valid.sessionTotal.totalNanoUsd + 1 },
+    })).toBe('current request exceeds the accumulated session total')
+  })
+
+  it('logs and preserves exact totals when accumulation would overflow', () => {
+    const report = vi.fn()
+    const costs = new VoiceCostAccumulator(report)
+    const maxSafeTokens = Math.floor(Number.MAX_SAFE_INTEGER / 20_000)
+    const maximum = parseRealtimeTokenUsage({
+      total_tokens: maxSafeTokens,
+      input_tokens: 0,
+      output_tokens: maxSafeTokens,
+      input_token_details: {
+        text_tokens: 0, audio_tokens: 0, cached_tokens: 0,
+        cached_tokens_details: { text_tokens: 0, audio_tokens: 0 },
+      },
+      output_token_details: { text_tokens: 0, audio_tokens: maxSafeTokens },
+    })!
+    expect(costs.addRealtime(maximum, 'first')).toBe(true)
+    expect(costs.addRealtime(maximum, 'second')).toBe(false)
+    expect(report).toHaveBeenCalledWith('cumulative nano-USD total exceeded the safe integer range')
   })
 })

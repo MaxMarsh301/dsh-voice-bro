@@ -1,6 +1,6 @@
 {
   "name": "dsh-voice-bro",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Russian voice mode plugin for DeepSeek Harness with OpenAI Realtime, WebRTC, push-to-talk, and the local wake word БРО",
   "type": "module",
@@ -24,7 +24,8 @@
     "russian"
   ],
   "scripts": {
-    "check": "node scripts/verify-repository.mjs"
+    "check": "node scripts/verify-repository.mjs",
+    "check:installer": "node --test scripts/install-into-dsh.test.mjs"
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
